@@ -1,4 +1,3 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "_comment": "Do not add a top-level /app directory: Vercel may detect Next.js App Router. ASGI entry is root main.py."
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
