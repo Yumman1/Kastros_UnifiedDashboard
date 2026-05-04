@@ -1,5 +1,17 @@
-# Vercel's Python/FastAPI detector only scans THIS file—entries hidden behind -r are ignored.
-# Keep FastAPI (and uvicorn) declared here so the backend is actually built and routed.
+# Keep in sync with pyproject.toml / agri_dashboard/requirements.txt (flat list for pip & Vercel).
+streamlit>=1.33.0
+pandas>=2.0.0
+requests>=2.31.0
+flask>=3.0.0
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
--r agri_dashboard/requirements.txt
+prophet>=1.1.5
+plotly>=5.17.0
+numpy>=1.24.0
+python-dateutil>=2.8.2
+python-dotenv>=1.0.0
+textblob>=0.17.1
+schedule>=1.2.0
+thefuzz>=0.22.0
+google-genai>=1.0.0
+yfinance>=0.2.31
