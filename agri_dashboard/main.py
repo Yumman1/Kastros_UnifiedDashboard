@@ -1,8 +1,7 @@
 """
-Vercel ASGI entry — MUST live at repo root (not in /app).
+Vercel ASGI entry when Project Root Directory is `agri_dashboard`.
 
-Do not use a top-level Python package named `app/`; Vercel may mis-detect Next.js
-App Router and never run this FastAPI app (edge 403/404).
+Keeps FastAPI discoverable as main.py without colliding with Streamlit (streamlit_app.py).
 """
 
 from __future__ import annotations
@@ -21,14 +20,13 @@ logging.basicConfig(
 )
 _log = logging.getLogger("kastros.boot")
 
-_REPO_ROOT = Path(__file__).resolve().parent
-_agri = _REPO_ROOT / "agri_dashboard"
+_agri = Path(__file__).resolve().parent
 _agri_str = str(_agri)
 if _agri_str not in sys.path:
     sys.path.insert(0, _agri_str)
 
 _log.info(
-    "boot start cwd=%s agri_dashboard=%s VERCEL=%s VERCEL_ENV=%s GIT=%s",
+    "boot (agri_dashboard root) cwd=%s agri_dashboard=%s VERCEL=%s VERCEL_ENV=%s GIT=%s",
     os.getcwd(),
     _agri_str,
     os.environ.get("VERCEL"),
@@ -39,8 +37,8 @@ _log.info(
 try:
     from api import app  # noqa: E402
     _log.info("boot ok: imported api.app title=%r", getattr(app, "title", ""))
-except Exception:  # pragma: no cover - production diagnostics
-    _log.exception("boot FAILED importing agri_dashboard.api — serving debug app only")
+except Exception:  # pragma: no cover
+    _log.exception("boot FAILED importing api — serving debug app only")
     tb = traceback.format_exc()
     from fastapi import FastAPI, Request
 
@@ -50,8 +48,8 @@ except Exception:  # pragma: no cover - production diagnostics
     def _import_error_root():
         return {
             "ok": False,
-            "stage": "import_agri_dashboard.api",
-            "message": "See traceback and Vercel Runtime Logs lines tagged [kastros]",
+            "stage": "import api (agri_dashboard)",
+            "message": "See traceback and Runtime Logs [kastros]",
             "traceback": tb[-12000:],
         }
 
@@ -59,7 +57,7 @@ except Exception:  # pragma: no cover - production diagnostics
     def _import_error_catch(request: Request, full_path: str):
         return {
             "ok": False,
-            "stage": "import_agri_dashboard.api",
+            "stage": "import api (agri_dashboard)",
             "path": request.url.path,
             "traceback": tb[-12000:],
         }
@@ -78,7 +76,7 @@ async def _request_log_middleware(request, call_next):  # type: ignore[no-untype
     _log.info("HTTP %s %s -> %s", request.method, p, sc)
     response.headers["X-Kastros-Handler"] = "fastapi"
     response.headers["X-Kastros-Path"] = p
-    response.headers["X-Kastros-Entry"] = "repo/main.py"
+    response.headers["X-Kastros-Entry"] = "agri_dashboard/main.py"
     sha = os.environ.get("VERCEL_GIT_COMMIT_SHA") or "local"
     response.headers["X-Kastros-Git"] = sha[:12] if len(sha) > 12 else sha
     return response

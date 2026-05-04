@@ -62,7 +62,7 @@ The **Pakistan Commodities Trading Dashboard** is a decoupled web app that:
                                    ▼
                           ┌──────────────────┐
                           │  Streamlit App   │
-                          │  app.py :8501    │
+                          │  streamlit_app.py :8501    │
                           │  (or React later)│
                           └──────────────────┘
 ```
@@ -95,7 +95,7 @@ The **Pakistan Commodities Trading Dashboard** is a decoupled web app that:
 uvicorn agri_dashboard.api:app --host 0.0.0.0 --port 8000
 ```
 
-### 3.2 Streamlit Dashboard (`app.py`)
+### 3.2 Streamlit Dashboard (`streamlit_app.py`)
 
 **Modes:**
 - **Standalone:** No `API_BASE_URL` – uses local database and direct imports
@@ -106,11 +106,11 @@ uvicorn agri_dashboard.api:app --host 0.0.0.0 --port 8000
 **Run frontend:**
 ```powershell
 # Standalone
-streamlit run agri_dashboard/app.py --server.port 8501
+streamlit run agri_dashboard/streamlit_app.py --server.port 8501
 
 # Decoupled (set API_BASE_URL first)
 $env:API_BASE_URL = "http://localhost:8000"
-streamlit run agri_dashboard/app.py --server.port 8501
+streamlit run agri_dashboard/streamlit_app.py --server.port 8501
 ```
 
 ### 3.3 Extraction (`extractor.py` + `dictionaries.py`)
@@ -175,14 +175,14 @@ uvicorn agri_dashboard.api:app --host 0.0.0.0 --port 8000
 ```powershell
 $env:API_BASE_URL = "http://localhost:8000"
 $env:GEMINI_API_KEY = "your-gemini-api-key"
-streamlit run agri_dashboard/app.py --server.port 8501
+streamlit run agri_dashboard/streamlit_app.py --server.port 8501
 ```
 
 **Evolution webhook:** Point to `http://localhost:8000/webhook` (or `http://host.docker.internal:8000/webhook` from Docker).
 
 ### Standalone (all-in-one)
 ```powershell
-streamlit run agri_dashboard/app.py --server.port 8501
+streamlit run agri_dashboard/streamlit_app.py --server.port 8501
 ```
 Database and extraction run in the same process. No API_BASE_URL needed.
 
@@ -206,7 +206,7 @@ Database and extraction run in the same process. No API_BASE_URL needed.
 agri_dashboard/
 ├── api.py                 # FastAPI backend (webhook, ingest, rates, forecast, etc.)
 ├── api_client.py          # Client for frontend when using API mode
-├── app.py                 # Streamlit dashboard
+├── streamlit_app.py                 # Streamlit dashboard
 ├── database.py            # SQLite operations
 ├── dictionaries.py        # Knowledge base (commodities, cities)
 ├── evolution_api.py       # Evolution API client

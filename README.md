@@ -36,7 +36,7 @@ python agri_dashboard/ingest_whatsapp.py
 
 4. Run the dashboard:
 ```bash
-python -m streamlit run agri_dashboard/app.py
+python -m streamlit run agri_dashboard/streamlit_app.py
 ```
 
 The dashboard will open at `http://localhost:8501`
@@ -45,7 +45,7 @@ The dashboard will open at `http://localhost:8501`
 
 ```
 agri_dashboard/
-├── app.py                 # Main Streamlit dashboard
+├── streamlit_app.py       # Main Streamlit dashboard
 ├── database.py           # Database operations
 ├── ingest_whatsapp.py    # Data collection script
 ├── forecast.py           # Prophet ML forecasting

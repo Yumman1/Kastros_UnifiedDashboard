@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 _agri_dir = os.path.dirname(os.path.abspath(__file__))
 LAST_INGEST_FILE = os.path.join(_agri_dir, "last_ingest.json")
 
-# Load .env from agri_dashboard so it works when run from project root (e.g. streamlit run agri_dashboard/app.py)
+# Load .env from agri_dashboard so it works when run from project root (e.g. streamlit run agri_dashboard/streamlit_app.py)
 load_dotenv(os.path.join(_agri_dir, ".env"))
 
 # Evolution API (primary, free & open-source: https://github.com/EvolutionAPI/evolution-api)

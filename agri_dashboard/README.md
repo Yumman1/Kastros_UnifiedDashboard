@@ -39,7 +39,7 @@ Or manually seed the database from the dashboard (use the "Seed Sample Data" but
 Start the Streamlit application:
 
 ```powershell
-streamlit run agri_dashboard/app.py
+streamlit run agri_dashboard/streamlit_app.py
 ```
 
 The dashboard will open in your default web browser at `http://localhost:8501`

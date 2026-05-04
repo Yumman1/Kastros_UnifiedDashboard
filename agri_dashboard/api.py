@@ -162,7 +162,7 @@ def read_root():
         "service": "Pakistan Commodities Trading API",
         "docs": "/docs",
         "health": "/health",
-        "note": "Streamlit dashboard (app.py) is not hosted here; use Streamlit Cloud or run locally.",
+        "note": "Streamlit UI is streamlit_app.py (not on Vercel); use Streamlit Cloud or run locally.",
     }
 
 

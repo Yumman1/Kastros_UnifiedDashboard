@@ -1,7 +1,7 @@
 """
-Vercel FastAPI entrypoint when the project's Root Directory is `agri_dashboard`.
+Vercel FastAPI entry when Root Directory is `agri_dashboard` (same ASGI as main.py).
 """
 
-from api import app
+from main import app  # noqa: E402 — agri_dashboard/main.py
 
 __all__ = ["app"]

@@ -257,7 +257,7 @@ The **Pakistan Commodities Trading Dashboard** is a comprehensive, AI-powered tr
    - `news_engine.py` - Sentiment analysis
 
 4. **Data Visualization:**
-   - `app.py` - Streamlit dashboard
+   - `streamlit_app.py` - Streamlit dashboard
    - Real-time updates
    - Interactive filtering
 
@@ -340,7 +340,7 @@ Opportunity Exists If: Profit Margin ≥ 5% (transport cost threshold)
 
 1. Install dependencies: `pip install -r requirements.txt`
 2. Initialize database: Run `ingest_whatsapp.py` or use "Seed Sample Data" button
-3. Launch dashboard: `python -m streamlit run app.py`
+3. Launch dashboard: `python -m streamlit run streamlit_app.py`
 4. Access at: `http://localhost:8501` (or 8502 if port busy)
 
 ### 6.2 Daily Usage
@@ -577,7 +577,7 @@ The Pakistan Commodities Trading Dashboard is a **production-ready, comprehensiv
 
 ```
 agri_dashboard/
-├── app.py                 # Main Streamlit dashboard (5 tabs)
+├── streamlit_app.py          # Main Streamlit dashboard (5 tabs)
 ├── database.py           # Database operations & queries
 ├── ingest_whatsapp.py    # Data collection from WhatsApp
 ├── forecast.py           # Prophet ML forecasting

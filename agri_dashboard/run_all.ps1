@@ -98,9 +98,9 @@ Write-Host ""
 # 4) Run Streamlit (foreground)
 try {
     if ($pythonExe -eq "py") {
-        & py -3 -m streamlit run agri_dashboard/app.py --server.port 8501
+        & py -3 -m streamlit run agri_dashboard/streamlit_app.py --server.port 8501
     } else {
-        & $pythonExe -m streamlit run agri_dashboard/app.py --server.port 8501
+        & $pythonExe -m streamlit run agri_dashboard/streamlit_app.py --server.port 8501
     }
 } finally {
     if ($backendProc -and -not $backendProc.HasExited) {
