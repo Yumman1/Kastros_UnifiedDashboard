@@ -59,3 +59,12 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Scheduler / ingest state
+agri_dashboard/last_ingest.json
+
+# Generated test outputs (large / local)
+agri_dashboard/outputs/
+
+# Local chat exports (large; not app source)
+WhatsApp Chat with Business Club Commodities.txt

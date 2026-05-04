@@ -1,14 +1,18 @@
 # Pakistan Commodities Trading Dashboard
 
-A Local-First Python dashboard for tracking Cotton, Wheat, and Corn prices in the Pakistan market.
+A Local-First Python dashboard for tracking Cotton, Wheat, and Corn prices in the Pakistan market. Ingests data from WhatsApp groups via Evolution API and extracts structured prices using a local LLM (Ollama).
 
 ## Features
 
-- 📈 **Live Rates**: View today's market prices in real-time
+- 📈 **Live Rates**: View market prices with group names (from WhatsApp)
 - 📊 **Trends**: Interactive charts showing price trends over time
 - 🤖 **AI Forecast**: Prophet-based ML forecasts for next 7 days
-- 🔍 **Filters**: Filter by commodity and city
-- 💾 **Local Storage**: SQLite database for offline-first operation
+- 💰 **Arbitrage**: Cross-city profit opportunities
+- 📰 **Market Intelligence**: News sentiment
+- 📥 **WhatsApp Import**: Fetch from Evolution API or upload chat export
+- 🤖 **LLM Extraction**: Ollama (llama3.2:1b) parses unstructured messages into commodity/price/city
+
+**For full architecture and documentation, see [APP_DOCUMENTATION.md](APP_DOCUMENTATION.md).**
 
 ## Setup Instructions
 
@@ -42,26 +46,12 @@ The dashboard will open in your default web browser at `http://localhost:8501`
 
 ## Configuration
 
-Edit `agri_dashboard/.env` to add your UltraMsg API credentials when ready:
+Edit `agri_dashboard/.env`:
 
-```
-ULTRAMSG_API_URL=https://api.ultramsg.com
-ULTRAMSG_API_KEY=your_api_key_here
-ULTRAMSG_INSTANCE_ID=your_instance_id_here
-```
+- **Evolution API**: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_CHAT_JID`
+- **Ollama**: `OLLAMA_URL`, `OLLAMA_MODEL` (default: llama3.2:1b)
 
-## Project Structure
-
-```
-agri_dashboard/
-├── app.py              # Main Streamlit dashboard
-├── database.py         # Database operations
-├── ingest_whatsapp.py  # Data collection script
-├── forecast.py         # Prophet forecasting module
-├── requirements.txt    # Python dependencies
-├── .env               # Environment variables
-└── market_data.db     # SQLite database (created automatically)
-```
+See [AUTOMATION_SETUP.md](AUTOMATION_SETUP.md) and [APP_DOCUMENTATION.md](APP_DOCUMENTATION.md) for details.
 
 ## Usage
 
@@ -70,3 +60,17 @@ agri_dashboard/
 3. **AI Forecast Tab**: Get ML-powered price predictions for the next 7 days
 
 Use the sidebar filters to narrow down by commodity (Cotton, Wheat, Corn) or city.
+
+## Cotton-Only Offline LLM Test
+
+Run a quota-safe Gemini test on a local WhatsApp export file (no Evolution API fetch):
+
+```powershell
+python agri_dashboard/cotton_llm_test.py --file "C:\Users\HP\Desktop\trading_AI_bot\WhatsApp Chat with Business Club Commodities.txt" --max-messages 8
+```
+
+Notes:
+- `--max-messages` is limited to `5-10` to protect Gemini credits.
+- Extraction is cotton-only and converts detected prices to `price_per_kg_pkr`.
+- Outputs are written to `agri_dashboard/outputs/` as JSON and CSV.
+- Add `--write-db` if you also want accepted rows inserted into `market_data.db`.

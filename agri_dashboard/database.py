@@ -1,172 +1,312 @@
 """
-Database handling module for the Commodities Trading Dashboard.
-Manages SQLite database operations for market data storage.
+SQLite database layer for HITL + contextual memory workflow.
 """
 
-import sqlite3
-import os
-from datetime import datetime, timedelta
-import random
+from __future__ import annotations
 
-# Get the directory where this script is located
+import os
+import sqlite3
+from datetime import datetime
+from typing import Iterable, List, Optional
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "market_data.db")
 
 
-def init_db():
-    """
-    Initialize the SQLite database and create the market_data table.
-    Creates the database file if it doesn't exist.
-    """
-    # Ensure the directory exists
+def get_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Create market_data table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS market_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME NOT NULL,
-            commodity TEXT NOT NULL,
-            source TEXT NOT NULL,
-            price REAL NOT NULL,
-            city TEXT NOT NULL,
-            sentiment_score REAL DEFAULT 0.0,
-            raw_message TEXT
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS market_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                city TEXT,
+                commodity TEXT,
+                quantity INTEGER,
+                original_price REAL,
+                price_per_kg REAL
+            )
+            """
         )
-    """)
-    
-    conn.commit()
-    conn.close()
-    print(f"Database initialized at {DB_PATH}")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                raw_message TEXT NOT NULL,
+                city TEXT,
+                commodity TEXT,
+                quantity INTEGER,
+                original_price REAL,
+                price_per_kg REAL,
+                confidence_score REAL,
+                ai_reasoning TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS model_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                keyword TEXT NOT NULL,
+                mistake TEXT NOT NULL,
+                human_correction TEXT NOT NULL
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS master_dictionary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slang_word TEXT NOT NULL,
+                standard_word TEXT NOT NULL
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rejected_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                raw_message TEXT NOT NULL,
+                rejection_reason TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
 
 
-def seed_data():
-    """
-    Insert 5 fake records into the market_data table for testing.
-    Creates records with realistic Pakistan market data.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Sample data for Pakistan commodities market
-    commodities = ["Cotton", "Wheat", "Corn"]
-    cities = ["Karachi", "Lahore", "Faisalabad", "Multan", "Hyderabad"]
-    sources = ["WhatsApp Group 1", "WhatsApp Group 2", "Market Updates"]
-    
-    # Generate 5 records with dates spread over the last few days
-    base_date = datetime.now()
-    
-    for i in range(5):
-        timestamp = base_date - timedelta(days=random.randint(0, 7), hours=random.randint(0, 23))
-        commodity = random.choice(commodities)
-        city = random.choice(cities)
-        source = random.choice(sources)
-        
-        # Realistic price ranges for Pakistan market (in PKR per maund/40kg)
-        if commodity == "Cotton":
-            price = round(random.uniform(8000, 12000), 2)
-        elif commodity == "Wheat":
-            price = round(random.uniform(3000, 4500), 2)
-        else:  # Corn
-            price = round(random.uniform(2500, 3500), 2)
-        
-        sentiment_score = round(random.uniform(-1.0, 1.0), 2)
-        raw_message = f"{commodity} rate in {city}: Rs. {price} per maund"
-        
-        cursor.execute("""
-            INSERT INTO market_data 
-            (timestamp, commodity, source, price, city, sentiment_score, raw_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (timestamp, commodity, source, price, city, sentiment_score, raw_message))
-    
-    conn.commit()
-    conn.close()
-    print("5 fake records inserted successfully!")
+def insert_market_trade(
+    timestamp: str,
+    city: str,
+    commodity: str,
+    quantity: Optional[int],
+    original_price: Optional[float],
+    price_per_kg: Optional[float],
+) -> int:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO market_trades (timestamp, city, commodity, quantity, original_price, price_per_kg)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (timestamp, city, commodity, quantity, original_price, price_per_kg),
+        )
+        return int(cur.lastrowid)
 
 
-def get_connection():
-    """Return a database connection."""
-    return sqlite3.connect(DB_PATH)
+def fetch_market_trades(limit: Optional[int] = None) -> List[sqlite3.Row]:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        if limit is None:
+            cur.execute("SELECT * FROM market_trades ORDER BY timestamp DESC, id DESC")
+        else:
+            cur.execute("SELECT * FROM market_trades ORDER BY timestamp DESC, id DESC LIMIT ?", (int(limit),))
+        return cur.fetchall()
 
 
-def insert_market_data(timestamp, commodity, source, price, city, sentiment_score=0.0, raw_message=""):
-    """
-    Insert a new market data record into the database.
-    
-    Args:
-        timestamp: DateTime object
-        commodity: String (Cotton, Wheat, Corn)
-        source: String (WhatsApp Group Name)
-        price: Float
-        city: String
-        sentiment_score: Float (default 0.0)
-        raw_message: String
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO market_data 
-        (timestamp, commodity, source, price, city, sentiment_score, raw_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (timestamp, commodity, source, price, city, sentiment_score, raw_message))
-    
-    conn.commit()
-    conn.close()
+def delete_market_trades(trade_ids: Iterable[int]) -> int:
+    """Delete many rows in one transaction; returns number of rows deleted."""
+    ids = list({int(i) for i in trade_ids})
+    if not ids:
+        return 0
+    placeholders = ",".join("?" * len(ids))
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM market_trades WHERE id IN ({placeholders})", ids)
+        conn.commit()
+        return int(cur.rowcount or 0)
 
 
-def get_todays_prices():
-    """
-    Fetch all prices from today.
-    Returns a list of tuples.
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    today = datetime.now().date()
-    cursor.execute("""
-        SELECT timestamp, commodity, source, price, city, sentiment_score, raw_message
-        FROM market_data
-        WHERE DATE(timestamp) = DATE(?)
-        ORDER BY timestamp DESC
-    """, (today,))
-    
-    results = cursor.fetchall()
-    conn.close()
-    return results
+def insert_pending_trade(
+    timestamp: str,
+    raw_message: str,
+    city: str,
+    commodity: str,
+    quantity: Optional[int],
+    original_price: Optional[float],
+    price_per_kg: Optional[float],
+    confidence_score: float,
+    ai_reasoning: str,
+) -> int:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO pending_trades
+            (timestamp, raw_message, city, commodity, quantity, original_price, price_per_kg, confidence_score, ai_reasoning)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                timestamp,
+                raw_message,
+                city,
+                commodity,
+                quantity,
+                original_price,
+                price_per_kg,
+                confidence_score,
+                ai_reasoning,
+            ),
+        )
+        return int(cur.lastrowid)
 
 
-def get_historic_data(commodity=None, city=None):
-    """
-    Fetch historic market data with optional filters.
-    
-    Args:
-        commodity: Optional filter for commodity type
-        city: Optional filter for city
-    
-    Returns:
-        List of tuples with all matching records
-    """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    query = "SELECT timestamp, commodity, source, price, city, sentiment_score FROM market_data WHERE 1=1"
-    params = []
-    
-    if commodity:
-        query += " AND commodity = ?"
-        params.append(commodity)
-    
-    if city:
-        query += " AND city = ?"
-        params.append(city)
-    
-    query += " ORDER BY timestamp ASC"
-    
-    cursor.execute(query, params)
-    results = cursor.fetchall()
-    conn.close()
-    return results
+def fetch_pending_trades(limit: Optional[int] = None) -> List[sqlite3.Row]:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        # Exclude ai_empty_extraction - those should not appear in the validation queue
+        base = "SELECT * FROM pending_trades WHERE (ai_reasoning IS NULL OR ai_reasoning NOT LIKE ?)"
+        params: tuple = ("%ai_empty_extraction%",)
+        if limit is not None:
+            base += " ORDER BY id DESC LIMIT ?"
+            params = params + (int(limit),)
+        else:
+            base += " ORDER BY id DESC"
+        cur.execute(base, params)
+        return cur.fetchall()
+
+
+def delete_pending_trade(trade_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM pending_trades WHERE id = ?", (int(trade_id),))
+
+
+def approve_all_pending() -> int:
+    """Approve every row returned by fetch_pending_trades (same filter as the queue)."""
+    rows = list(fetch_pending_trades())
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        cur = conn.cursor()
+        for row in rows:
+            cur.execute(
+                """
+                INSERT INTO market_trades (timestamp, city, commodity, quantity, original_price, price_per_kg)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["timestamp"],
+                    str(row["city"] or ""),
+                    str(row["commodity"] or ""),
+                    int(row["quantity"] or 0),
+                    float(row["original_price"] or 0),
+                    float(row["price_per_kg"] or 0),
+                ),
+            )
+            cur.execute("DELETE FROM pending_trades WHERE id = ?", (int(row["id"]),))
+        conn.commit()
+    return len(rows)
+
+
+def reject_all_pending(rejection_reason: str = "") -> int:
+    """Reject every row in the queue; optional shared reason stored on each rejected row."""
+    rows = list(fetch_pending_trades())
+    if not rows:
+        return 0
+    reason = rejection_reason.strip()
+    created = datetime.now().isoformat(sep=" ", timespec="seconds")
+    with get_connection() as conn:
+        cur = conn.cursor()
+        for row in rows:
+            cur.execute(
+                """
+                INSERT INTO rejected_trades (raw_message, rejection_reason, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (str(row["raw_message"] or "").strip(), reason, created),
+            )
+            cur.execute("DELETE FROM pending_trades WHERE id = ?", (int(row["id"]),))
+        conn.commit()
+    return len(rows)
+
+
+def insert_rejected_trade(raw_message: str, rejection_reason: str) -> int:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO rejected_trades (raw_message, rejection_reason, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (raw_message.strip(), rejection_reason.strip(), datetime.now().isoformat(sep=" ", timespec="seconds")),
+        )
+        return int(cur.lastrowid)
+
+
+def search_rejected_trades(words: Iterable[str]) -> List[sqlite3.Row]:
+    """Rows where any keyword appears in stored message or rejection reason (for RAG context)."""
+    words = [w.strip().lower() for w in words if w and w.strip()]
+    if not words:
+        return []
+    hay = "LOWER(COALESCE(raw_message,'') || ' ' || COALESCE(rejection_reason,''))"
+    query = " OR ".join([f"{hay} LIKE ?"] * len(words))
+    params = tuple(f"%{w}%" for w in words)
+    with get_connection() as conn:
+        return conn.execute(
+            f"SELECT * FROM rejected_trades WHERE {query} ORDER BY id DESC LIMIT 25",
+            params,
+        ).fetchall()
+
+
+def insert_model_memory(keyword: str, mistake: str, human_correction: str) -> int:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO model_memory (keyword, mistake, human_correction)
+            VALUES (?, ?, ?)
+            """,
+            (keyword.strip(), mistake.strip(), human_correction.strip()),
+        )
+        return int(cur.lastrowid)
+
+
+def fetch_model_memory() -> List[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM model_memory ORDER BY id DESC").fetchall()
+
+
+def search_model_memory(words: Iterable[str]) -> List[sqlite3.Row]:
+    words = [w.strip().lower() for w in words if w and w.strip()]
+    if not words:
+        return []
+    query = " OR ".join(["LOWER(keyword) LIKE ?"] * len(words))
+    params = tuple(f"%{w}%" for w in words)
+    with get_connection() as conn:
+        return conn.execute(
+            f"SELECT * FROM model_memory WHERE {query} ORDER BY id DESC",
+            params,
+        ).fetchall()
+
+
+def insert_master_dictionary(slang_word: str, standard_word: str) -> int:
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO master_dictionary (slang_word, standard_word)
+            VALUES (?, ?)
+            """,
+            (slang_word.strip(), standard_word.strip()),
+        )
+        return int(cur.lastrowid)
+
+
+def fetch_master_dictionary() -> List[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM master_dictionary ORDER BY id DESC").fetchall()
+
+
+def delete_master_dictionary(item_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM master_dictionary WHERE id = ?", (int(item_id),))

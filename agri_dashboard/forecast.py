@@ -29,9 +29,10 @@ def prepare_data_for_prophet(commodity=None, city=None):
     # Convert to DataFrame
     df = pd.DataFrame(data, columns=['timestamp', 'commodity', 'source', 'price', 'city', 'sentiment_score'])
     
-    # Convert timestamp to datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
+    # Convert timestamp to datetime (handle mixed formats: with/without microseconds)
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    df = df.dropna(subset=['timestamp'])
+
     # Group by date and take average price per day
     df['ds'] = df['timestamp'].dt.date
     daily_prices = df.groupby('ds')['price'].mean().reset_index()
