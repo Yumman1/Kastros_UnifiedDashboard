@@ -8,7 +8,7 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from dotenv import load_dotenv
 from google import genai
@@ -254,3 +254,105 @@ def extract_trade(text: str, received_timestamp: Optional[str] = None) -> Dict:
         "pending_count": pending_count,
         "trades": processed_trades,
     }
+
+
+def _gemini_extract_market_quotes(text: str) -> Tuple[List[Dict[str, Any]], str]:
+    """
+    Extract spot-style rows for market_data: commodity, price (PKR per kg), city.
+    Returns (records, raw_model_text_or_error).
+    """
+    preprocessed = preprocess_text(text)
+    if not preprocessed.strip():
+        return [], ""
+
+    system_prompt = (
+        "You extract Pakistani physical commodity spot prices from WhatsApp-style text. "
+        "Return every distinct local quote. Price must be PKR per kg as a number. "
+        "If cotton is priced per maund, divide by 37.324 to get per kg. "
+        "For other commodities priced per maund, divide by 40. "
+        "Ignore ICE / international futures. If nothing is a valid local quote, return an empty list."
+    )
+    schema = types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "quotes": types.Schema(
+                type=types.Type.ARRAY,
+                items=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "commodity": types.Schema(type=types.Type.STRING),
+                        "price": types.Schema(type=types.Type.NUMBER),
+                        "city": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["commodity", "price", "city"],
+                ),
+            )
+        },
+        required=["quotes"],
+    )
+    try:
+        client = genai.Client()
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=preprocessed,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema=schema,
+                temperature=0.1,
+            ),
+        )
+        raw = (response.text or "{}").strip() or "{}"
+        data = json.loads(raw)
+    except Exception as exc:
+        return [], f"({type(exc).__name__}: {exc})"
+
+    quotes = data.get("quotes") or []
+    if not isinstance(quotes, list):
+        return [], raw
+
+    records: List[Dict[str, Any]] = []
+    for q in quotes:
+        if not isinstance(q, dict):
+            continue
+        commodity = str(q.get("commodity", "") or "").strip()
+        city = str(q.get("city", "") or "").strip()
+        try:
+            price = float(q.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if not commodity or not city or price <= 0:
+            continue
+        records.append({"commodity": commodity, "price": price, "city": city})
+
+    return records, raw
+
+
+def process_message_with_debug(
+    text: str,
+    message_timestamp: Optional[Union[datetime, str]] = None,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    For API / ingest: extract market_data rows and one debug bundle for logging.
+    """
+    raw_text = (text or "").strip()
+    if not raw_text:
+        return [], []
+
+    _ = message_timestamp
+    records, raw_out = _gemini_extract_market_quotes(raw_text)
+    debug_entry: Dict[str, Any] = {
+        "line": raw_text,
+        "gemini_output": raw_out,
+        "extracted": records,
+    }
+    return records, [debug_entry]
+
+
+def process_message_to_db_format(
+    text: str,
+    message_timestamp: Optional[Union[datetime, str]] = None,
+) -> List[Dict[str, Any]]:
+    """Compatibility alias used by ingest and legacy helpers."""
+    records, _ = process_message_with_debug(text, message_timestamp=message_timestamp)
+    return records

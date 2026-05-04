@@ -43,7 +43,6 @@ from ingest_whatsapp import (
 from extractor import process_message_to_db_format, process_message_with_debug
 from whatsapp_parser import parse_whatsapp_export
 from evolution_api import find_chats, EVOLUTION_INSTANCE
-from forecast import get_forecast_with_history
 from analysis import get_latest_arbitrage_opportunities, get_arbitrage_summary
 from news_engine import get_market_news, get_sentiment_summary
 
@@ -151,6 +150,18 @@ class IngestExportRequest(BaseModel):
 
 
 # --- Endpoints ---
+
+
+@app.get("/")
+def read_root():
+    """Landing page for Vercel / root URL (avoids 404 on bare deployment)."""
+    return {
+        "service": "Pakistan Commodities Trading API",
+        "docs": "/docs",
+        "health": "/health",
+        "note": "Streamlit dashboard (app.py) is not hosted here; use Streamlit Cloud or run locally.",
+    }
+
 
 @app.on_event("startup")
 async def startup():
@@ -414,6 +425,8 @@ def get_forecast(
     periods: int = Query(7, ge=1, le=30),
 ):
     """Get AI-powered price forecast."""
+    from forecast import get_forecast_with_history
+
     historical_df, forecast_df = get_forecast_with_history(
         commodity=commodity,
         city=city,

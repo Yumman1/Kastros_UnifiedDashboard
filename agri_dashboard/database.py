@@ -6,12 +6,21 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import datetime
-from typing import Iterable, List, Optional
+from datetime import datetime, timedelta
+from typing import Iterable, List, Optional, Union
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "market_data.db")
+
+
+def _default_db_path() -> str:
+    # Vercel serverless: project dir is read-only; only /tmp is writable.
+    if os.getenv("VERCEL") or os.getenv("DATABASE_USE_TMP", "").lower() in ("1", "true", "yes"):
+        return os.path.join("/tmp", "market_data.db")
+    return os.path.join(BASE_DIR, "market_data.db")
+
+
+DB_PATH = os.environ.get("DATABASE_PATH") or _default_db_path()
 
 
 def get_connection() -> sqlite3.Connection:
@@ -21,7 +30,9 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute(
@@ -81,6 +92,214 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             )
             """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS market_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                commodity TEXT NOT NULL,
+                source TEXT,
+                price REAL NOT NULL,
+                city TEXT,
+                sentiment_score REAL DEFAULT 0,
+                raw_message TEXT
+            )
+            """
+        )
+
+
+def _timestamp_to_iso(ts: Union[datetime, str, None]) -> str:
+    if ts is None:
+        return datetime.now().isoformat(sep=" ", timespec="seconds")
+    if isinstance(ts, datetime):
+        return ts.isoformat(sep=" ", timespec="seconds")
+    return str(ts)
+
+
+def insert_market_data(
+    timestamp: Union[datetime, str, None],
+    commodity: str,
+    source: str,
+    price: float,
+    city: str,
+    sentiment_score: float = 0.0,
+    raw_message: Optional[str] = None,
+) -> int:
+    """Insert a row into market_data (API + WhatsApp ingest)."""
+    ts_str = _timestamp_to_iso(timestamp)
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO market_data (timestamp, commodity, source, price, city, sentiment_score, raw_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ts_str,
+                str(commodity or ""),
+                str(source or ""),
+                float(price),
+                str(city or ""),
+                float(sentiment_score or 0),
+                raw_message if raw_message is not None else "",
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def get_recent_prices(days: int = 30) -> List[tuple]:
+    cutoff = datetime.now() - timedelta(days=int(days))
+    cutoff_s = cutoff.isoformat(sep=" ", timespec="seconds")
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT timestamp, commodity, source, price, city, sentiment_score, raw_message
+            FROM market_data
+            WHERE datetime(timestamp) >= datetime(?)
+            ORDER BY datetime(timestamp) DESC
+            """,
+            (cutoff_s,),
+        ).fetchall()
+    out: List[tuple] = []
+    for row in rows:
+        ts_raw = row["timestamp"]
+        try:
+            ts_dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError:
+            ts_dt = ts_raw
+        out.append(
+            (
+                ts_dt,
+                row["commodity"],
+                row["source"],
+                row["price"],
+                row["city"],
+                row["sentiment_score"],
+                row["raw_message"],
+            )
+        )
+    return out
+
+
+def get_todays_prices() -> List[tuple]:
+    today = datetime.now().date().isoformat()
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT timestamp, commodity, source, price, city, sentiment_score, raw_message
+            FROM market_data
+            WHERE date(timestamp) = date(?)
+            ORDER BY datetime(timestamp) DESC
+            """,
+            (today,),
+        ).fetchall()
+    out: List[tuple] = []
+    for row in rows:
+        ts_raw = row["timestamp"]
+        try:
+            ts_dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError:
+            ts_dt = ts_raw
+        out.append(
+            (
+                ts_dt,
+                row["commodity"],
+                row["source"],
+                row["price"],
+                row["city"],
+                row["sentiment_score"],
+                row["raw_message"],
+            )
+        )
+    return out
+
+
+def get_historic_data(
+    commodity: Optional[str] = None,
+    city: Optional[str] = None,
+) -> List[tuple]:
+    q = "SELECT timestamp, commodity, source, price, city, sentiment_score FROM market_data WHERE 1=1"
+    params: List[str] = []
+    if commodity:
+        q += " AND commodity = ?"
+        params.append(str(commodity))
+    if city:
+        q += " AND city = ?"
+        params.append(str(city))
+    q += " ORDER BY datetime(timestamp) ASC"
+    with get_connection() as conn:
+        rows = conn.execute(q, params).fetchall()
+    out: List[tuple] = []
+    for row in rows:
+        ts_raw = row["timestamp"]
+        try:
+            ts_dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError:
+            ts_dt = ts_raw
+        out.append(
+            (
+                ts_dt,
+                row["commodity"],
+                row["source"],
+                row["price"],
+                row["city"],
+                row["sentiment_score"],
+            )
+        )
+    return out
+
+
+def get_recent_entries_for_inspector(limit: int = 50) -> List[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, timestamp, commodity, source, price, city, sentiment_score, raw_message
+            FROM market_data
+            ORDER BY datetime(timestamp) DESC, id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    entries: List[dict] = []
+    for row in rows:
+        ts_raw = row["timestamp"]
+        try:
+            ts_dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError:
+            ts_dt = ts_raw
+        entries.append(
+            {
+                "id": row["id"],
+                "timestamp": ts_dt,
+                "commodity": row["commodity"],
+                "source": row["source"],
+                "price": row["price"],
+                "city": row["city"],
+                "sentiment_score": row["sentiment_score"],
+                "raw_message": row["raw_message"],
+            }
+        )
+    return entries
+
+
+def seed_data() -> None:
+    """Sample rows for /seed and manual testing."""
+    init_db()
+    now = datetime.now()
+    samples = [
+        (now, "Cotton", "seed", 185.5, "Karachi", 0.1, "seed row"),
+        (now, "Wheat", "seed", 92.0, "Lahore", 0.0, "seed row"),
+    ]
+    for ts, comm, src, price, cit, sent, raw in samples:
+        insert_market_data(
+            timestamp=ts,
+            commodity=comm,
+            source=src,
+            price=price,
+            city=cit,
+            sentiment_score=sent,
+            raw_message=raw,
         )
 
 

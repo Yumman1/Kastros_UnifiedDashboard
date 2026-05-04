@@ -7,8 +7,8 @@ import json
 import os
 from datetime import datetime
 
-_agri_dir = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(_agri_dir, "market_data.db")
+from database import DB_PATH
+
 DEBUG_TABLE = "extraction_debug_log"
 MAX_ENTRIES = 200
 
