@@ -50,6 +50,8 @@ app = FastAPI(
     title="Pakistan Commodities Trading API",
     description="Backend API for WhatsApp data ingestion and market rates",
     version="1.0.0",
+    # Vercel's edge + Starlette slash redirects often disagree; avoid redirect loops.
+    redirect_slashes=False,
 )
 
 app.add_middleware(
