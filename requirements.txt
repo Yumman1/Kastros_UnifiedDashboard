@@ -1,1 +1,5 @@
+# Vercel's Python/FastAPI detector only scans THIS file—entries hidden behind -r are ignored.
+# Keep FastAPI (and uvicorn) declared here so the backend is actually built and routed.
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
 -r agri_dashboard/requirements.txt
